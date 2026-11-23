@@ -49,8 +49,16 @@ const expiryText = computed(() => {
     return '已过期'
   if (expiryStatus.value === 'long_term')
     return '长期'
-  return `剩余 ${Math.max(0, expiryDays.value)} 天`
+  return `${Math.max(0, expiryDays.value)} 天`
 })
+// 只有 7 天内（含已过期）才算即将到期，标红；其余正常显示。
+const expiryUrgent = computed(() => expiryStatus.value === 'expired'
+  || ((expiryStatus.value === 'critical' || expiryStatus.value === 'warning' || expiryStatus.value === 'normal') && expiryDays.value <= 7))
+const expiryTextClass = computed(() => expiryUrgent.value
+  ? 'font-semibold text-rose-600 dark:text-rose-400'
+  : expiryStatus.value === 'unknown'
+    ? 'text-slate-500'
+    : 'font-semibold text-slate-700 dark:text-slate-200')
 const expiryDate = computed(() => expiryStatus.value === 'unknown' || expiryStatus.value === 'long_term'
   ? ''
   : formatDateTime(props.node.expired_at, 'YYYY-MM-DD'))
@@ -244,9 +252,9 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
             <div class="text-slate-500">
               到期
             </div>
-            <div data-node-expiry-row class="mt-0.5 flex h-[1.65rem] min-w-0 flex-col items-start gap-y-0.5 text-slate-500">
-              <span data-node-expiry-text class="max-w-full whitespace-nowrap">{{ expiryText }}</span>
-              <span v-if="expiryDate" data-node-expiry-date class="max-w-full whitespace-nowrap text-[8px] tabular-nums">{{ expiryDate }}</span>
+            <div data-node-expiry-row class="mt-0.5 flex min-h-[1.65rem] min-w-0 flex-col items-start gap-y-0.5 text-slate-500">
+              <span data-node-expiry-text class="max-w-full whitespace-nowrap text-[10px] tabular-nums" :class="expiryTextClass">{{ expiryText }}</span>
+              <span v-if="expiryDate" data-node-expiry-date class="max-w-full whitespace-nowrap text-[8px] tabular-nums" :class="expiryUrgent && 'text-rose-600/80 dark:text-rose-400/80'">{{ expiryDate }}</span>
             </div>
           </div>
           <div data-node-connections-cell class="node-card-network-conn flex min-w-0 items-center justify-between gap-2 px-2.5 py-1.5">

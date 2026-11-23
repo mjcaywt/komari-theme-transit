@@ -109,8 +109,8 @@ const BILLING_CYCLE_RANGES: Array<{ type: BillingCycleType, min: number, max: nu
 
 /** 过期状态阈值配置（天） */
 const EXPIRE_THRESHOLDS = {
-  critical: 5, // 5天内过期显示红色
-  warning: 10, // 10天内过期显示黄色
+  critical: 7, // 7天内过期显示红色（只有 7 天内才算即将到期）
+  warning: 7, // 不再单独设黄色档
   long_term: 36500, // 约100年视为长期
 } as const
 
