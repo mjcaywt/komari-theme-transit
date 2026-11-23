@@ -249,6 +249,10 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
               <span v-if="expiryDate" data-node-expiry-date class="max-w-full whitespace-nowrap text-[8px] tabular-nums">{{ expiryDate }}</span>
             </div>
           </div>
+          <div data-node-connections-cell class="node-card-network-conn flex min-w-0 items-center justify-between gap-2 px-2.5 py-1.5">
+            <span class="text-slate-500">连接数</span>
+            <span class="text-[10px] tabular-nums text-slate-700 dark:text-slate-200">TCP {{ Math.max(0, node.connections || 0) }}<span class="mx-1.5 text-slate-400">·</span>UDP {{ Math.max(0, node.connections_udp || 0) }}</span>
+          </div>
         </div>
       </div>
 
@@ -333,6 +337,13 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   border-bottom: 1px solid var(--transit-divider);
 }
 
+.node-card-network-grid > .node-card-network-conn {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--transit-divider);
+  border-right: 0;
+  border-bottom: 0;
+}
+
 /*
  * 两列：网络概览 | 三网回程，三网质量占满整行。
  * 三网质量是一整排采样格，挤进半列会读不出来，所以不像以前那样在宽卡上并成三列。
@@ -357,6 +368,11 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   }
 
   .node-card-cell--full .node-card-network-grid > div:last-child {
+    border-right: 0;
+  }
+
+  .node-card-cell--full .node-card-network-grid > div:nth-child(4),
+  .node-card-cell--full .node-card-network-grid > .node-card-network-conn {
     border-right: 0;
   }
 }

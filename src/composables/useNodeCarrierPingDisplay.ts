@@ -36,18 +36,6 @@ const CARRIER_DOT_CLASSES: Record<ChinaCarrierKey, string> = {
   mobile: 'bg-emerald-500',
 }
 
-function getLatencyTone(latency: number): { tone: TelemetrySampleTone, toneClass: string } {
-  if (latency <= 60)
-    return { tone: 'healthy', toneClass: 'bg-emerald-600/90' }
-  if (latency <= 100)
-    return { tone: 'healthy', toneClass: 'bg-green-400/80' }
-  if (latency <= 160)
-    return { tone: 'notice', toneClass: 'bg-lime-400/80' }
-  if (latency <= 200)
-    return { tone: 'warning', toneClass: 'bg-yellow-400/80' }
-  return { tone: 'critical', toneClass: 'bg-rose-500/80' }
-}
-
 function getLossTone(loss: number): { tone: TelemetrySampleTone, toneClass: string } {
   if (loss <= 1)
     return { tone: 'healthy', toneClass: 'bg-emerald-600/90' }
@@ -58,6 +46,19 @@ function getLossTone(loss: number): { tone: TelemetrySampleTone, toneClass: stri
   if (loss <= 9)
     return { tone: 'warning', toneClass: 'bg-yellow-400/90' }
   return { tone: 'critical', toneClass: 'bg-rose-500/80' }
+}
+
+// 卡片采样条只按丢包上色：没丢包一律绿色，丢包少量黄色、较多红色；高延迟本身不再变色。
+function getLossBarTone(loss: number | null, latency: number | null): { tone: TelemetrySampleTone, toneClass: string } {
+  if (loss === null)
+    return latency === null
+      ? { tone: 'muted', toneClass: 'bg-muted-foreground/15' }
+      : { tone: 'healthy', toneClass: 'bg-emerald-500/90' }
+  if (loss < 10)
+    return { tone: 'healthy', toneClass: 'bg-emerald-500/90' }
+  if (loss < 50)
+    return { tone: 'warning', toneClass: 'bg-yellow-400/90' }
+  return { tone: 'critical', toneClass: 'bg-rose-500/85' }
 }
 
 function formatLoss(value: number | null): string {
@@ -74,10 +75,10 @@ export function buildHistoryBars(
 ): CarrierPingBar[] {
   return history.map((point, index) => {
     const value = point[metric]
-    const visual = value === null
-      ? { tone: 'muted' as const, toneClass: 'bg-muted-foreground/15' }
-      : metric === 'latency'
-        ? getLatencyTone(value)
+    const visual = metric === 'latency'
+      ? getLossBarTone(point.loss, point.latency)
+      : value === null
+        ? { tone: 'muted' as const, toneClass: 'bg-muted-foreground/15' }
         : getLossTone(value)
     const latencyText = point.latency === null ? '无响应' : `${Math.round(point.latency)} ms`
     const lossText = `丢包 ${formatLoss(point.loss)}`
