@@ -2,7 +2,7 @@
 import type { NodeData } from '@/stores/nodes'
 import { computed } from 'vue'
 import CarrierPingSamples from '@/components/CarrierPingSamples.vue'
-import { useNodeCarrierPingDisplay } from '@/composables/useNodeCarrierPingDisplay'
+import { buildEmptyBars, buildHistoryBars, useNodeCarrierPingDisplay } from '@/composables/useNodeCarrierPingDisplay'
 import { useNodePingStats } from '@/composables/useNodePingStats'
 import { PING_SUMMARY_MAX_COUNT } from '@/constants/load'
 import { useAppStore } from '@/stores/app'
@@ -38,6 +38,7 @@ const pingStatsHours = computed(() => {
   const preserveTime = appStore.publicSettings?.ping_record_preserve_time
   return typeof preserveTime === 'number' && preserveTime > 0 ? Math.min(preserveTime, 1) : 1
 })
+const CUSTOM_PING_DOT_CLASSES = ['bg-rose-500', 'bg-blue-500', 'bg-emerald-500']
 const customPingRows = Array.from({ length: 3 }, (_, index) => {
   const taskName = computed(() => config.value.pingTasks?.[index] ?? '')
   const ping = useNodePingStats(() => props.node.uuid, {
@@ -49,6 +50,17 @@ const customPingRows = Array.from({ length: 3 }, (_, index) => {
   })
   return {
     taskName,
+    dotClass: CUSTOM_PING_DOT_CLASSES[index],
+    bars: computed(() => {
+      const label = taskName.value
+      const key = `ping-${index}`
+      const base = ping.history.value.length
+        ? buildHistoryBars(label, key, ping.history.value, 'latency')
+        : buildEmptyBars(label, key, 'latency', ping.loading.value ? '加载中' : '暂无数据')
+      return ping.stale.value
+        ? base.map(bar => ({ ...bar, tone: 'muted' as const, toneClass: 'bg-muted-foreground/20' }))
+        : base
+    }),
     loading: ping.loading,
     delayed: ping.delayed,
     stale: ping.stale,
@@ -130,9 +142,10 @@ function lossTone(loss: string, commonMode = false): string {
         <span>线路质量</span><span :class="customPingFreshnessDelayed && 'text-amber-700 dark:text-amber-300'">{{ customPingFreshnessLabel }}</span>
       </div>
       <div v-if="visibleCustomPingRows.length" class="space-y-1">
-        <div v-for="row in visibleCustomPingRows" :key="row.taskName.value" data-node-custom-ping-row class="grid min-w-0 grid-cols-[minmax(0,1fr)_52px_38px] items-center gap-1 text-[8px] leading-none">
-          <span class="truncate text-slate-500" :title="row.taskName.value">{{ row.taskName.value }}</span>
-          <strong class="text-right font-medium tabular-nums text-slate-700 dark:text-slate-200">{{ row.latency.value }}</strong>
+        <div v-for="row in visibleCustomPingRows" :key="row.taskName.value" data-node-custom-ping-row class="grid min-w-0 grid-cols-[26px_minmax(24px,1fr)_minmax(38px,auto)_minmax(34px,auto)] items-center gap-1 text-[8px] leading-none">
+          <span class="flex min-w-0 items-center gap-1 text-slate-500" :title="row.taskName.value"><i class="size-1.5 shrink-0 rounded-full" :class="row.dotClass" /><span class="truncate">{{ row.taskName.value }}</span></span>
+          <CarrierPingSamples :bars="row.bars.value.slice(-12)" :label="`${row.taskName.value}延迟`" />
+          <strong class="text-right font-medium tabular-nums text-slate-700 dark:text-slate-200">{{ row.latency.value.replace(' ms', '') }}</strong>
           <strong class="text-right font-medium tabular-nums" :class="lossTone(row.loss.value)">{{ row.loss.value }}</strong>
         </div>
       </div>

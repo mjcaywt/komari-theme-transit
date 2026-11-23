@@ -66,9 +66,9 @@ function formatLoss(value: number | null): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)}%`
 }
 
-function buildHistoryBars(
+export function buildHistoryBars(
   carrierLabel: string,
-  carrierKey: ChinaCarrierKey,
+  carrierKey: string,
   history: NodePingHistoryPoint[],
   metric: 'latency' | 'loss',
 ): CarrierPingBar[] {
@@ -94,7 +94,7 @@ function buildHistoryBars(
   })
 }
 
-function buildEmptyBars(carrierLabel: string, carrierKey: ChinaCarrierKey, metric: 'latency' | 'loss', reason: string): CarrierPingBar[] {
+export function buildEmptyBars(carrierLabel: string, carrierKey: string, metric: 'latency' | 'loss', reason: string): CarrierPingBar[] {
   return Array.from({ length: EMPTY_PING_BAR_COUNT }, (_, index) => ({
     key: `${carrierKey}-${metric}-empty-${index}`,
     tone: 'muted',
