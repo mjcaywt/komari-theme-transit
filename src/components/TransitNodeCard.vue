@@ -180,7 +180,7 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
         </div>
         <ProgressThin class="mt-1.5" :percentage="node.cpu" :status="resourceStatus(node.cpu)" :height="3" />
         <div data-node-resource-value class="mt-1 break-words text-[9px] leading-tight tabular-nums text-slate-500 dark:text-slate-600">
-          {{ (node.load ?? 0).toFixed(2) }}, {{ (node.load5 ?? 0).toFixed(2) }}, {{ (node.load15 ?? 0).toFixed(2) }}
+          {{ node.cpu_cores > 0 ? `${node.cpu_cores} 线程` : '-' }}
         </div>
       </div>
       <div>
