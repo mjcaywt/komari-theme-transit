@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  formatCardPrice,
   formatCurrencyValue,
   formatPrice,
   formatPriceWithCycle,
@@ -262,6 +263,21 @@ describe('price formatting', () => {
 
   test('renders a zero price with its cycle rather than as a bare 免费', () => {
     expect(formatPriceWithCycle(0, 30)).toBe('免费 / 月')
+  })
+})
+
+describe('formatCardPrice', () => {
+  test('a free node (price -1) is labelled 免费 on the card', () => {
+    expect(formatCardPrice(-1, 30, '$')).toBe('免费')
+    expect(formatCardPrice(-1, 30, '$', 'en-US')).toBe('Free')
+  })
+
+  test('a priced node shows price and cycle', () => {
+    expect(formatCardPrice(1188, 365, '¥')).toBe('¥1188 / 年')
+  })
+
+  test('an unset price (0) shows nothing', () => {
+    expect(formatCardPrice(0, 30, '$')).toBe('')
   })
 })
 

@@ -14,7 +14,7 @@ import { getConfiguredNodeRole, getNodeRole } from '@/utils/nodeRoleHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 import { parseNodeRouteTag } from '@/utils/routeTag'
-import { formatPriceWithCycle, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
+import { formatCardPrice, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
 
 const props = defineProps<{ node: NodeData }>()
 const emit = defineEmits<{ click: [], manage: [] }>()
@@ -37,8 +37,8 @@ const tags = computed(() => parseTags(props.node.tags)
   .filter(tag => tag !== role.value)
   .slice(0, 5))
 
-const price = computed(() => props.node.price > 0 && showPrice.value
-  ? formatPriceWithCycle(props.node.price, props.node.billing_cycle, props.node.currency, appStore.lang)
+const price = computed(() => showPrice.value
+  ? formatCardPrice(props.node.price, props.node.billing_cycle, props.node.currency, appStore.lang)
   : '')
 const expiryStatus = computed(() => getExpireStatus(props.node.expired_at))
 const expiryDays = computed(() => getDaysUntilExpired(props.node.expired_at))
@@ -148,27 +148,30 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
           <span data-node-uptime class="break-words" :class="isMaintenance && 'font-medium text-amber-700 dark:text-amber-300'">
             {{ isMaintenance ? '维护中' : node.online ? `在线 ${getUptimeDays(node.uptime)} 天` : '离线' }}
           </span>
-          <span v-if="price" data-node-price class="break-words">{{ price }}</span>
           <span v-if="isSilenced && !isMaintenance" data-node-maintenance-state class="break-words font-medium text-slate-600 dark:text-slate-300">已静默</span>
         </div>
-        <TooltipProvider v-if="visibleAlert && node.online" :delay-duration="160">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <span
-                data-node-alert-reason
-                class="pointer-events-auto flex min-w-0 max-w-full items-center gap-1.5 font-medium tabular-nums"
-                :class="alertTone"
-                @click="emit('click')"
-              >
-                <span class="size-1.5 shrink-0 rounded-full bg-current" />
-                <span class="truncate">{{ visibleAlert.detail }}</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent data-node-alert-tooltip side="top" :side-offset="7" class="max-w-[260px] text-[10px] tabular-nums">
-              {{ visibleAlert.detail }}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <!-- 右侧：告警（有的话）在前，价格固定贴右边。 -->
+        <div v-if="(visibleAlert && node.online) || price" class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
+          <TooltipProvider v-if="visibleAlert && node.online" :delay-duration="160">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <span
+                  data-node-alert-reason
+                  class="pointer-events-auto flex min-w-0 max-w-full items-center gap-1.5 font-medium tabular-nums"
+                  :class="alertTone"
+                  @click="emit('click')"
+                >
+                  <span class="size-1.5 shrink-0 rounded-full bg-current" />
+                  <span class="truncate">{{ visibleAlert.detail }}</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent data-node-alert-tooltip side="top" :side-offset="7" class="max-w-[260px] text-[10px] tabular-nums">
+                {{ visibleAlert.detail }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span v-if="price" data-node-price class="whitespace-nowrap">{{ price }}</span>
+        </div>
       </div>
     </header>
 

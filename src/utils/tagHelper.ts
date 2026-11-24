@@ -381,6 +381,20 @@ export function formatPriceWithCycle(
   return `${priceText} / ${cycleText}`
 }
 
+/**
+ * 节点卡片上的价格：免费节点（-1）标"免费"，有价格的带周期，未设置（0 等）不显示。
+ */
+export function formatCardPrice(
+  price: number,
+  billingCycle: number,
+  currency: string = '￥',
+  lang: 'zh-CN' | 'en-US' = 'zh-CN',
+): string {
+  if (!(price > 0) && !isFreePrice(price))
+    return ''
+  return formatPriceWithCycle(price, billingCycle, currency, lang)
+}
+
 const TRAILING_ZERO_REGEX = /\.?0+$/
 
 /**
