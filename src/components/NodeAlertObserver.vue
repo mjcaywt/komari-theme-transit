@@ -6,14 +6,22 @@ import { reportNodeAlert, resetNodeAlert, suppressNodeAlert } from '@/composable
 import { useNodeCarrierPingDisplay } from '@/composables/useNodeCarrierPingDisplay'
 import { useAppStore } from '@/stores/app'
 import { getPrimaryNodeAlert } from '@/utils/nodeAlert'
+import { resolveNodeCardPanelMode } from '@/utils/nodeCardPanel'
 
 const props = defineProps<{ node: NodeData }>()
 const appStore = useAppStore()
-const { carrierDisplays, carrierScopeLabel } = useNodeCarrierPingDisplay(() => props.node.uuid)
+const { carrierDisplays, carrierScopeLabel, loading: carrierStatsLoading } = useNodeCarrierPingDisplay(() => props.node.uuid)
 const isMaintenance = computed(() => Boolean(appStore.nodeControls[props.node.uuid]?.maintenanceUntil))
+// 与卡片面板（NodeCardInsightPanel）同一套判定，保证"卡片显示什么"和"按什么告警"一致。
+const panelMode = computed(() => resolveNodeCardPanelMode(
+  props.node,
+  appStore.nodeCardPanels[props.node.uuid] ?? { mode: appStore.nodeCardPanelDefault },
+  carrierDisplays.value.some(carrier => carrier.taskNames.length > 0),
+  carrierStatsLoading.value,
+))
 const candidate = computed<NodeAlert | null>(() => isMaintenance.value
   ? null
-  : getPrimaryNodeAlert(props.node, carrierDisplays.value, carrierScopeLabel.value))
+  : getPrimaryNodeAlert(props.node, carrierDisplays.value, carrierScopeLabel.value, panelMode.value))
 const sampleToken = computed(() => {
   const carrierToken = carrierDisplays.value
     .map(carrier => carrier.latencyBars.at(-1)?.key ?? `${carrier.key}:empty`)

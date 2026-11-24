@@ -143,4 +143,20 @@ describe('getPrimaryNodeAlert', () => {
   test('a healthy node with healthy carriers has no primary alert', () => {
     expect(getPrimaryNodeAlert(node(), [carrier()], '北京三网')).toBeNull()
   })
+
+  test('carrier loss only alerts when the card shows the carrier panel', () => {
+    // 卡片显示自定义 Ping（落地机等）时，三网丢包不再标红；数据照常在后台算。
+    const lossy = [carrier({ key: 'unicom', label: '联通', lossDisplay: '100' })]
+    expect(getPrimaryNodeAlert(node(), lossy, '山东三网', 'ping')).toBeNull()
+    expect(getPrimaryNodeAlert(node(), lossy, '山东三网', 'system')).toBeNull()
+    expect(getPrimaryNodeAlert(node(), lossy, '山东三网', 'carrier')?.detail).toBe('山东联通丢包 100.0%')
+    // 不传卡片模式时保持旧行为。
+    expect(getPrimaryNodeAlert(node(), lossy, '山东三网')?.detail).toBe('山东联通丢包 100.0%')
+  })
+
+  test('realtime alerts still fire on non-carrier cards', () => {
+    const lossy = [carrier({ lossDisplay: '100' })]
+    expect(getPrimaryNodeAlert(node({ online: false }), lossy, '山东三网', 'ping')?.detail).toBe('节点离线')
+    expect(getPrimaryNodeAlert(node({ disk: 95 * GIB }), lossy, '山东三网', 'ping')?.detail).toBe('磁盘 95.0%')
+  })
 })

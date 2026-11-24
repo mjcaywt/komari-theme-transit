@@ -1,5 +1,6 @@
 import type { CarrierPingDisplay } from '@/composables/useNodeCarrierPingDisplay'
 import type { NodeData } from '@/stores/nodes'
+import type { NodeCardPanelMode } from '@/utils/nodeCardPanel'
 import { OPS_ALERT_THRESHOLDS } from '@/constants/ops'
 import { getDiskPercentage, getMemoryPercentage, getTrafficUsedPercentage, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
 
@@ -120,9 +121,13 @@ export function getPrimaryNodeAlert(
   node: NodeData,
   carriers: CarrierPingDisplay[] = [],
   scopeLabel = '',
+  panelMode?: Exclude<NodeCardPanelMode, 'auto'>,
 ): NodeAlert | null {
   const alerts = [...getRealtimeNodeAlerts(node)]
-  const carrierAlert = getCarrierNodeAlert(node, carriers, scopeLabel)
+  // 只有卡片显示三网质量时，三网丢包/延迟才参与告警；落地机等显示自定义 Ping 的卡片不因此标红。
+  const carrierAlert = panelMode === undefined || panelMode === 'carrier'
+    ? getCarrierNodeAlert(node, carriers, scopeLabel)
+    : null
   if (carrierAlert)
     alerts.push(carrierAlert)
   return alerts.sort((left, right) => right.score - left.score)[0] ?? null
