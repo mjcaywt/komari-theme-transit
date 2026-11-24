@@ -26,6 +26,7 @@ import { usePublicSettingsState } from '@/stores/app.publicSettings'
 import { createTopologySettings } from '@/stores/app.topologySettings'
 import { isNodeCardPanelDefaultMode, parseNodeCardPanelConfigs } from '@/utils/nodeCardPanel'
 import { parseNodeControls } from '@/utils/nodeControl'
+import { parseNodeOwnedSince } from '@/utils/nodeOwnedSince'
 import { normalizeThemeSettings, resolveThemeBackgroundSource } from '@/utils/themeSettings'
 import {
   ALL_GENERAL_CARD_KEYS,
@@ -223,6 +224,9 @@ const useAppStore = defineStore('app', () => {
   })
 
   const nodeCardPanels = computed(() => parseNodeCardPanelConfigs(themeSettings.value.nodeCardPanels))
+
+  /** 每台机器拿到手的日期（主题设置 nodeOwnedSince），卡片上算「已拥有 N 天」。 */
+  const nodeOwnedSince = computed(() => parseNodeOwnedSince(themeSettings.value.nodeOwnedSince))
 
   const carrierPingRegion = computed<string>(() => {
     const value = readStringSetting(themeSettings.value, 'carrierPingRegion')
@@ -541,6 +545,7 @@ const useAppStore = defineStore('app', () => {
     minuteTick,
     nodeCardPanelDefault,
     nodeCardPanels,
+    nodeOwnedSince,
     carrierPingRegion,
     generalCardEnabledMap,
     generalCardOrder,

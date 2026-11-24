@@ -10,6 +10,7 @@ import { useNodeAlert } from '@/composables/useNodeAlertState'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, getStatus, getUptimeDays } from '@/utils/helper'
 import { getDiskPercentage, getMemoryPercentage, getTrafficUsed, getTrafficUsedPercentage, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
+import { getOwnedDays, resolveOwnedSince } from '@/utils/nodeOwnedSince'
 import { getConfiguredNodeRole, getNodeRole } from '@/utils/nodeRoleHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
@@ -62,6 +63,24 @@ const expiryTextClass = computed(() => expiryUrgent.value
 const expiryDate = computed(() => expiryStatus.value === 'unknown' || expiryStatus.value === 'long_term'
   ? ''
   : formatDateTime(props.node.expired_at, 'YYYY-MM-DD'))
+
+// 状态行左边：拿到手的天数（主题设置 nodeOwnedSince，没配就用加进面板的日期），开机时长放悬停提示里。
+const ownedSince = computed(() => resolveOwnedSince(appStore.nodeOwnedSince, props.node.uuid, props.node.created_at))
+const ownedDays = computed(() => ownedSince.value ? getOwnedDays(ownedSince.value.date, appStore.minuteTick.getTime()) : null)
+const uptimeDays = computed(() => getUptimeDays(props.node.uptime))
+const statusText = computed(() => {
+  if (isMaintenance.value)
+    return '维护中'
+  if (!props.node.online)
+    return '离线'
+  return ownedDays.value === null ? `在线 ${uptimeDays.value} 天` : `已拥有 ${ownedDays.value} 天`
+})
+const statusHint = computed(() => {
+  if (!ownedSince.value)
+    return ''
+  const since = `${ownedSince.value.date} 起${ownedSince.value.source === 'created' ? '（加进面板的日期）' : ''}`
+  return props.node.online ? `${since} · 开机 ${uptimeDays.value} 天` : since
+})
 
 const primaryAlert = useNodeAlert(() => props.node.uuid)
 const visibleAlert = computed(() => isMaintenance.value ? null : primaryAlert.value)
@@ -145,8 +164,20 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
       </div>
       <div data-node-status-row class="mt-1.5 flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1 text-[10px] text-slate-500">
         <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span data-node-uptime class="break-words" :class="isMaintenance && 'font-medium text-amber-700 dark:text-amber-300'">
-            {{ isMaintenance ? '维护中' : node.online ? `在线 ${getUptimeDays(node.uptime)} 天` : '离线' }}
+          <TooltipProvider v-if="statusHint && !isMaintenance" :delay-duration="160">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <span data-node-uptime :data-node-owned-since="ownedSince?.date" class="pointer-events-auto break-words tabular-nums">
+                  {{ statusText }}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent data-node-owned-tooltip side="top" :side-offset="7" class="max-w-[260px] text-[10px] tabular-nums">
+                {{ statusHint }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span v-else data-node-uptime class="break-words" :class="isMaintenance && 'font-medium text-amber-700 dark:text-amber-300'">
+            {{ statusText }}
           </span>
           <span v-if="isSilenced && !isMaintenance" data-node-maintenance-state class="break-words font-medium text-slate-600 dark:text-slate-300">已静默</span>
         </div>
