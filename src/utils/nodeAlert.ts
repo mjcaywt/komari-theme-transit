@@ -2,7 +2,7 @@ import type { CarrierPingDisplay } from '@/composables/useNodeCarrierPingDisplay
 import type { NodeData } from '@/stores/nodes'
 import type { NodeCardPanelMode } from '@/utils/nodeCardPanel'
 import { OPS_ALERT_THRESHOLDS } from '@/constants/ops'
-import { getDiskPercentage, getMemoryPercentage, getTrafficUsedPercentage, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
+import { getDiskPercentage, getMemoryPercentage, getTrafficUsed, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
 
 export type NodeAlertSeverity = 'warning' | 'critical'
 
@@ -56,8 +56,9 @@ export function getRealtimeNodeAlerts(node: NodeData): NodeAlert[] {
     metricAlert(node, 'cpu', 'CPU', node.cpu, OPS_ALERT_THRESHOLDS.cpu.warning, OPS_ALERT_THRESHOLDS.cpu.critical, 'tabler:cpu'),
     metricAlert(node, 'memory', '内存', getMemoryPercentage(node), OPS_ALERT_THRESHOLDS.memory.warning, OPS_ALERT_THRESHOLDS.memory.critical, 'tabler:device-sd-card'),
     metricAlert(node, 'disk', '磁盘', getDiskPercentage(node), OPS_ALERT_THRESHOLDS.disk.warning, OPS_ALERT_THRESHOLDS.disk.critical, 'tabler:server-2'),
+    // 流量用真实比例（不封顶 100%），超额时告警文字和卡片上流量一行的数一致。
     hasTrafficLimit(node)
-      ? metricAlert(node, 'traffic', '流量额度', getTrafficUsedPercentage(node), OPS_ALERT_THRESHOLDS.traffic.warning, OPS_ALERT_THRESHOLDS.traffic.critical, 'tabler:arrows-transfer-up-down')
+      ? metricAlert(node, 'traffic', '流量额度', getTrafficUsed(node) / node.traffic_limit * 100, OPS_ALERT_THRESHOLDS.traffic.warning, OPS_ALERT_THRESHOLDS.traffic.critical, 'tabler:arrows-transfer-up-down')
       : null,
   ].filter((alert): alert is NodeAlert => Boolean(alert))
 

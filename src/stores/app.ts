@@ -24,6 +24,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue'
 import { getAuthSession, requirePermission, setAuthSessionFromLogin, subscribeAuthSession, verifyLogin } from '@/services/auth.service'
 import { usePublicSettingsState } from '@/stores/app.publicSettings'
 import { createTopologySettings } from '@/stores/app.topologySettings'
+import { parseNodeBandwidth } from '@/utils/nodeBandwidth'
 import { isNodeCardPanelDefaultMode, parseNodeCardPanelConfigs } from '@/utils/nodeCardPanel'
 import { parseNodeControls } from '@/utils/nodeControl'
 import { parseNodeOwnedSince } from '@/utils/nodeOwnedSince'
@@ -227,6 +228,9 @@ const useAppStore = defineStore('app', () => {
 
   /** 每台机器拿到手的日期（主题设置 nodeOwnedSince），卡片上算「已拥有 N 天」。 */
   const nodeOwnedSince = computed(() => parseNodeOwnedSince(themeSettings.value.nodeOwnedSince))
+
+  /** 每台机器的带宽（主题设置 nodeBandwidth，单位 Mbps，可带到期变化），卡片网络概览里显示。 */
+  const nodeBandwidth = computed(() => parseNodeBandwidth(themeSettings.value.nodeBandwidth))
 
   const carrierPingRegion = computed<string>(() => {
     const value = readStringSetting(themeSettings.value, 'carrierPingRegion')
@@ -546,6 +550,7 @@ const useAppStore = defineStore('app', () => {
     nodeCardPanelDefault,
     nodeCardPanels,
     nodeOwnedSince,
+    nodeBandwidth,
     carrierPingRegion,
     generalCardEnabledMap,
     generalCardOrder,

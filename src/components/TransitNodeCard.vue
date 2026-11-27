@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useNodeAlert } from '@/composables/useNodeAlertState'
 import { useAppStore } from '@/stores/app'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, getStatus, getUptimeDays } from '@/utils/helper'
+import { formatMbps, formatTrafficLimit, resolveBandwidth, trafficModeLabel } from '@/utils/nodeBandwidth'
 import { getDiskPercentage, getMemoryPercentage, getTrafficUsed, getTrafficUsedPercentage, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
 import { getOwnedDays, resolveOwnedSince } from '@/utils/nodeOwnedSince'
 import { getConfiguredNodeRole, getNodeRole } from '@/utils/nodeRoleHelper'
@@ -20,6 +21,8 @@ import { formatCardPrice, getDaysUntilExpired, getExpireStatus, parseTags } from
 const props = defineProps<{ node: NodeData }>()
 const emit = defineEmits<{ click: [], manage: [] }>()
 const appStore = useAppStore()
+const formatBytes = (value: number) => formatBytesWithConfig(value, appStore.byteDecimals)
+const formatSpeed = (value: number) => formatBytesPerSecondWithConfig(value, appStore.byteDecimals)
 const nodeControl = computed(() => appStore.nodeControls[props.node.uuid])
 const isMaintenance = computed(() => Boolean(nodeControl.value?.maintenanceUntil))
 const isSilenced = computed(() => Boolean(nodeControl.value?.silenceUntil))
@@ -28,6 +31,15 @@ const memoryPercentage = computed(() => getMemoryPercentage(props.node))
 const diskPercentage = computed(() => getDiskPercentage(props.node))
 const trafficUsed = computed(() => getTrafficUsed(props.node))
 const trafficPercentage = computed(() => getTrafficUsedPercentage(props.node))
+const trafficLimited = computed(() => hasTrafficLimit(props.node))
+// 进度条封顶 100%，文字写真实比例（超额时能看出超了多少）。
+const trafficPercentText = computed(() => trafficLimited.value ? (trafficUsed.value / props.node.traffic_limit * 100).toFixed(1) : '0.0')
+const trafficLimitText = computed(() => formatTrafficLimit(props.node.traffic_limit) || formatBytes(props.node.traffic_limit))
+const trafficMode = computed(() => trafficModeLabel(props.node.traffic_limit_type))
+// 带宽来自主题设置 nodeBandwidth（Mbps）；note 是流量一行下面的小注（比如「东京 3 台共用」）。
+const bandwidthPlan = computed(() => appStore.nodeBandwidth[props.node.uuid])
+const bandwidth = computed(() => resolveBandwidth(bandwidthPlan.value, appStore.minuteTick.getTime()))
+const trafficFootnote = computed(() => bandwidthPlan.value?.note ?? '')
 const showPrice = computed(() => appStore.isLoggedIn || !appStore.hidePriceWhenLoggedOut)
 const role = computed(() => getNodeRole(props.node.tags, props.node.groups)
   ?? getConfiguredNodeRole(props.node.name, appStore.topologyRoute))
@@ -84,8 +96,6 @@ const statusHint = computed(() => {
 
 const primaryAlert = useNodeAlert(() => props.node.uuid)
 const visibleAlert = computed(() => isMaintenance.value ? null : primaryAlert.value)
-const formatBytes = (value: number) => formatBytesWithConfig(value, appStore.byteDecimals)
-const formatSpeed = (value: number) => formatBytesPerSecondWithConfig(value, appStore.byteDecimals)
 
 function resourceStatus(value: number) {
   return getStatus(value)
@@ -251,10 +261,12 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
       >
         <div class="flex items-center justify-between gap-2 px-2.5 py-2 text-slate-500">
           <span>网络概览</span>
-          <span v-if="hasTrafficLimit(node)" class="shrink-0 tabular-nums">{{ trafficPercentage.toFixed(1) }}%</span>
         </div>
 
-        <!-- 四项一组：半宽时排成 2×2，整行时摊成一排，不留大片空白 -->
+        <!--
+          上行/下行各自带累计量，带宽和到期一组；四格半宽时 2×2，整行时摊成一排。
+          下面两行占满整宽：流量（用量 / 上限 + 计费方式 + 进度条，没上限写不限量）、连接数。
+        -->
         <div data-node-network-grid class="node-card-network-grid grid">
           <div data-node-speed-cell class="min-w-0 px-2.5 py-1.5">
             <div class="text-slate-500">
@@ -262,6 +274,9 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
             </div>
             <div class="mt-0.5 break-words text-[10px] tabular-nums text-emerald-600 dark:text-emerald-400">
               ↑ {{ formatSpeed(node.net_out) }}
+            </div>
+            <div data-node-total-up class="mt-0.5 break-words text-[9px] tabular-nums text-slate-500">
+              累计 {{ formatBytes(node.net_total_up ?? 0) }}
             </div>
           </div>
           <div class="min-w-0 px-2.5 py-1.5">
@@ -271,15 +286,22 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
             <div class="mt-0.5 break-words text-[10px] tabular-nums text-slate-700 dark:text-slate-300">
               ↓ {{ formatSpeed(node.net_in) }}
             </div>
-          </div>
-          <div class="min-w-0 px-2.5 py-1.5">
-            <div class="text-slate-500">
-              累计
+            <div data-node-total-down class="mt-0.5 break-words text-[9px] tabular-nums text-slate-500">
+              累计 {{ formatBytes(node.net_total_down ?? 0) }}
             </div>
-            <div data-node-traffic-value class="mt-0.5 break-words text-[10px] font-medium leading-tight tabular-nums text-slate-700 dark:text-slate-200">
-              {{ formatBytes(trafficUsed) }}<template v-if="hasTrafficLimit(node)">
-                / {{ formatBytes(node.traffic_limit) }}
-              </template>
+          </div>
+          <div data-node-bandwidth-cell class="min-w-0 px-2.5 py-1.5">
+            <div class="text-slate-500">
+              带宽
+            </div>
+            <template v-if="bandwidth">
+              <div data-node-bandwidth-value class="mt-0.5 break-words text-[10px] font-medium leading-snug tabular-nums text-slate-700 dark:text-slate-200">
+                <div>↑ {{ formatMbps(bandwidth.current.up) }}</div>
+                <div>↓ {{ formatMbps(bandwidth.current.down) }}</div>
+              </div>
+            </template>
+            <div v-else data-node-bandwidth-value class="mt-0.5 text-[10px] text-slate-500">
+              未设置
             </div>
           </div>
           <div class="min-w-0 px-2.5 py-1.5">
@@ -291,7 +313,20 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
               <span v-if="expiryDate" data-node-expiry-date class="max-w-full whitespace-nowrap text-[8px] tabular-nums" :class="expiryUrgent && 'text-rose-600/80 dark:text-rose-400/80'">{{ expiryDate }}</span>
             </div>
           </div>
-          <div data-node-connections-cell class="node-card-network-conn flex min-w-0 items-center justify-between gap-2 px-2.5 py-1.5">
+          <div data-node-traffic-row class="node-card-network-row min-w-0 px-2.5 py-1.5">
+            <div class="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+              <span class="text-slate-500">流量<template v-if="trafficLimited"> · {{ trafficMode }}</template></span>
+              <span v-if="trafficLimited" data-node-traffic-value class="text-[10px] font-medium tabular-nums text-slate-700 dark:text-slate-200">
+                {{ formatBytes(trafficUsed) }} / {{ trafficLimitText }}<span class="ml-1.5 font-normal" :class="trafficPercentage >= 100 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'">{{ trafficPercentText }}%</span>
+              </span>
+              <span v-else data-node-traffic-value class="text-[10px] font-medium text-slate-700 dark:text-slate-200">不限量</span>
+            </div>
+            <ProgressThin v-if="trafficLimited" class="mt-1" :percentage="trafficPercentage" :status="resourceStatus(trafficPercentage)" :height="3" />
+            <div v-if="trafficFootnote" data-node-traffic-note class="mt-1 break-words text-[8px] text-slate-500">
+              {{ trafficFootnote }}
+            </div>
+          </div>
+          <div data-node-connections-cell class="node-card-network-row node-card-network-conn flex min-w-0 items-center justify-between gap-2 px-2.5 py-1.5">
             <span class="text-slate-500">连接数</span>
             <span class="text-[10px] tabular-nums text-slate-700 dark:text-slate-200">TCP {{ Math.max(0, node.connections || 0) }}<span class="mx-1.5 text-slate-400">·</span>UDP {{ Math.max(0, node.connections_udp || 0) }}</span>
           </div>
@@ -363,7 +398,7 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   background: var(--transit-cell-bg);
 }
 
-/* 上行/下行/累计/到期默认 2×2；只有在卡片本身够宽、且这一格独占整行时才摊成一排。
+/* 上行/下行/带宽/到期默认 2×2；只有在卡片本身很宽、且这一格独占整行时才摊成一排。
    `--full` 只说明这个节点没有回程数据，不代表容器很宽——不加宽度条件的话，窄卡上
    会得到四个五十几像素的窄列。 */
 .node-card-network-grid {
@@ -379,7 +414,8 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   border-bottom: 1px solid var(--transit-divider);
 }
 
-.node-card-network-grid > .node-card-network-conn {
+/* 整宽的行（流量、连接数）。用 div.xxx 把优先级抬到和 nth-child(odd) 一样，否则奇数位的行会多出一条右边框。 */
+.node-card-network-grid > div.node-card-network-row {
   grid-column: 1 / -1;
   border-top: 1px solid var(--transit-divider);
   border-right: 0;
@@ -399,7 +435,11 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   .node-card-cell--full {
     grid-column: 1 / -1;
   }
+}
 
+/* 每格有两三行（速度+累计、带宽+变化日期），一格至少要 160px 左右才不折行，
+   所以只有很宽的卡才摊成一排四格；平常的卡（370px 上下）保持 2×2。 */
+@container (min-width: 40rem) {
   .node-card-cell--full .node-card-network-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -414,7 +454,7 @@ const statusEdgeStyle = computed(() => ({ '--node-status-tone': statusEdgeTone.v
   }
 
   .node-card-cell--full .node-card-network-grid > div:nth-child(4),
-  .node-card-cell--full .node-card-network-grid > .node-card-network-conn {
+  .node-card-cell--full .node-card-network-grid > div.node-card-network-row {
     border-right: 0;
   }
 }
