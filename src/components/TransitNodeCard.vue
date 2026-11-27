@@ -8,19 +8,22 @@ import { ProgressThin } from '@/components/ui/progress-thin'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNodeAlert } from '@/composables/useNodeAlertState'
 import { useAppStore } from '@/stores/app'
+import { useNodesStore } from '@/stores/nodes'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, getStatus, getUptimeDays } from '@/utils/helper'
 import { formatMbps, formatTrafficLimit, resolveBandwidth, trafficModeLabel } from '@/utils/nodeBandwidth'
-import { getDiskPercentage, getMemoryPercentage, getTrafficUsed, getTrafficUsedPercentage, hasTrafficLimit } from '@/utils/nodeMetricsHelper'
+import { getDiskPercentage, getMemoryPercentage, getTrafficUsed } from '@/utils/nodeMetricsHelper'
 import { getOwnedDays, resolveOwnedSince } from '@/utils/nodeOwnedSince'
 import { getConfiguredNodeRole, getNodeRole } from '@/utils/nodeRoleHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 import { parseNodeRouteTag } from '@/utils/routeTag'
 import { formatCardPrice, getDaysUntilExpired, getExpireStatus, parseTags } from '@/utils/tagHelper'
+import { findTrafficPool, getTrafficPoolUsage } from '@/utils/trafficPool'
 
 const props = defineProps<{ node: NodeData }>()
 const emit = defineEmits<{ click: [], manage: [] }>()
 const appStore = useAppStore()
+const nodesStore = useNodesStore()
 const formatBytes = (value: number) => formatBytesWithConfig(value, appStore.byteDecimals)
 const formatSpeed = (value: number) => formatBytesPerSecondWithConfig(value, appStore.byteDecimals)
 const nodeControl = computed(() => appStore.nodeControls[props.node.uuid])
@@ -29,17 +32,33 @@ const isSilenced = computed(() => Boolean(nodeControl.value?.silenceUntil))
 
 const memoryPercentage = computed(() => getMemoryPercentage(props.node))
 const diskPercentage = computed(() => getDiskPercentage(props.node))
-const trafficUsed = computed(() => getTrafficUsed(props.node))
-const trafficPercentage = computed(() => getTrafficUsedPercentage(props.node))
-const trafficLimited = computed(() => hasTrafficLimit(props.node))
+// 共用流量组（主题设置 trafficPools）：这一行显示整组合计 / 组上限，本机用量写在下面小注里。
+const trafficPool = computed(() => findTrafficPool(appStore.trafficPools, props.node.uuid))
+const poolUsage = computed(() => trafficPool.value ? getTrafficPoolUsage(trafficPool.value, nodesStore.nodesByUuid) : null)
+const nodeTrafficUsed = computed(() => trafficPool.value
+  ? getTrafficUsed({ net_total_up: props.node.net_total_up, net_total_down: props.node.net_total_down, traffic_limit_type: trafficPool.value.type })
+  : getTrafficUsed(props.node))
+const trafficUsed = computed(() => poolUsage.value?.used ?? nodeTrafficUsed.value)
+const trafficLimit = computed(() => poolUsage.value?.limit ?? (props.node.traffic_limit || 0))
+const trafficLimited = computed(() => trafficLimit.value > 0)
+const trafficRealPercentage = computed(() => trafficLimited.value ? trafficUsed.value / trafficLimit.value * 100 : 0)
 // 进度条封顶 100%，文字写真实比例（超额时能看出超了多少）。
-const trafficPercentText = computed(() => trafficLimited.value ? (trafficUsed.value / props.node.traffic_limit * 100).toFixed(1) : '0.0')
-const trafficLimitText = computed(() => formatTrafficLimit(props.node.traffic_limit) || formatBytes(props.node.traffic_limit))
-const trafficMode = computed(() => trafficModeLabel(props.node.traffic_limit_type))
+const trafficPercentage = computed(() => Math.min(100, trafficRealPercentage.value))
+const trafficPercentText = computed(() => trafficRealPercentage.value.toFixed(1))
+const trafficLimitText = computed(() => formatTrafficLimit(trafficLimit.value) || formatBytes(trafficLimit.value))
+const trafficMode = computed(() => trafficModeLabel(trafficPool.value?.type ?? props.node.traffic_limit_type))
+
 // 带宽来自主题设置 nodeBandwidth（Mbps）；note 是流量一行下面的小注（比如「东京 3 台共用」）。
 const bandwidthPlan = computed(() => appStore.nodeBandwidth[props.node.uuid])
 const bandwidth = computed(() => resolveBandwidth(bandwidthPlan.value, appStore.minuteTick.getTime()))
-const trafficFootnote = computed(() => bandwidthPlan.value?.note ?? '')
+const trafficFootnote = computed(() => {
+  const parts: string[] = []
+  if (trafficPool.value)
+    parts.push(`${trafficPool.value.name}合计 · 本机 ${formatBytes(nodeTrafficUsed.value)}`)
+  if (bandwidthPlan.value?.note)
+    parts.push(bandwidthPlan.value.note)
+  return parts.join(' · ')
+})
 const showPrice = computed(() => appStore.isLoggedIn || !appStore.hidePriceWhenLoggedOut)
 const role = computed(() => getNodeRole(props.node.tags, props.node.groups)
   ?? getConfiguredNodeRole(props.node.name, appStore.topologyRoute))

@@ -39,7 +39,13 @@ function metricAlert(
   }
 }
 
-export function getRealtimeNodeAlerts(node: NodeData): NodeAlert[] {
+/** 共用流量组的合计（有的话），用来代替单机的用量 / 上限。 */
+export interface TrafficOverride {
+  used: number
+  limit: number
+}
+
+export function getRealtimeNodeAlerts(node: NodeData, traffic: TrafficOverride | null = null): NodeAlert[] {
   if (!node.online) {
     return [{
       key: `${node.uuid}:offline`,
@@ -56,8 +62,11 @@ export function getRealtimeNodeAlerts(node: NodeData): NodeAlert[] {
     metricAlert(node, 'cpu', 'CPU', node.cpu, OPS_ALERT_THRESHOLDS.cpu.warning, OPS_ALERT_THRESHOLDS.cpu.critical, 'tabler:cpu'),
     metricAlert(node, 'memory', '内存', getMemoryPercentage(node), OPS_ALERT_THRESHOLDS.memory.warning, OPS_ALERT_THRESHOLDS.memory.critical, 'tabler:device-sd-card'),
     metricAlert(node, 'disk', '磁盘', getDiskPercentage(node), OPS_ALERT_THRESHOLDS.disk.warning, OPS_ALERT_THRESHOLDS.disk.critical, 'tabler:server-2'),
-    // 流量用真实比例（不封顶 100%），超额时告警文字和卡片上流量一行的数一致。
-    hasTrafficLimit(node)
+    // 流量用真实比例（不封顶 100%），超额时告警文字和卡片上流量一行的数一致；共用组按整组合计。
+    traffic
+      ? metricAlert(node, 'traffic', '流量额度', traffic.used / traffic.limit * 100, OPS_ALERT_THRESHOLDS.traffic.warning, OPS_ALERT_THRESHOLDS.traffic.critical, 'tabler:arrows-transfer-up-down')
+      : null,
+    !traffic && hasTrafficLimit(node)
       ? metricAlert(node, 'traffic', '流量额度', getTrafficUsed(node) / node.traffic_limit * 100, OPS_ALERT_THRESHOLDS.traffic.warning, OPS_ALERT_THRESHOLDS.traffic.critical, 'tabler:arrows-transfer-up-down')
       : null,
   ].filter((alert): alert is NodeAlert => Boolean(alert))
@@ -123,8 +132,9 @@ export function getPrimaryNodeAlert(
   carriers: CarrierPingDisplay[] = [],
   scopeLabel = '',
   panelMode?: Exclude<NodeCardPanelMode, 'auto'>,
+  traffic: TrafficOverride | null = null,
 ): NodeAlert | null {
-  const alerts = [...getRealtimeNodeAlerts(node)]
+  const alerts = [...getRealtimeNodeAlerts(node, traffic)]
   // 只有卡片显示三网质量时，三网丢包/延迟才参与告警；落地机等显示自定义 Ping 的卡片不因此标红。
   const carrierAlert = panelMode === undefined || panelMode === 'carrier'
     ? getCarrierNodeAlert(node, carriers, scopeLabel)

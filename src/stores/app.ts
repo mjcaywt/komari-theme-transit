@@ -29,6 +29,7 @@ import { isNodeCardPanelDefaultMode, parseNodeCardPanelConfigs } from '@/utils/n
 import { parseNodeControls } from '@/utils/nodeControl'
 import { parseNodeOwnedSince } from '@/utils/nodeOwnedSince'
 import { normalizeThemeSettings, resolveThemeBackgroundSource } from '@/utils/themeSettings'
+import { parseTrafficPools } from '@/utils/trafficPool'
 import {
   ALL_GENERAL_CARD_KEYS,
   BYTE_DECIMALS,
@@ -231,6 +232,9 @@ const useAppStore = defineStore('app', () => {
 
   /** 每台机器的带宽（主题设置 nodeBandwidth，单位 Mbps，可带到期变化），卡片网络概览里显示。 */
   const nodeBandwidth = computed(() => parseNodeBandwidth(themeSettings.value.nodeBandwidth))
+
+  /** 几台共用一份流量的组（主题设置 trafficPools），组里每张卡显示整组合计。 */
+  const trafficPools = computed(() => parseTrafficPools(themeSettings.value.trafficPools))
 
   const carrierPingRegion = computed<string>(() => {
     const value = readStringSetting(themeSettings.value, 'carrierPingRegion')
@@ -551,6 +555,7 @@ const useAppStore = defineStore('app', () => {
     nodeCardPanels,
     nodeOwnedSince,
     nodeBandwidth,
+    trafficPools,
     carrierPingRegion,
     generalCardEnabledMap,
     generalCardOrder,
